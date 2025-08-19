@@ -144,3 +144,120 @@ ggcorr(numeric_df, label = TRUE, label_round = 2, hjust = 0.75, size = 3)
 ggpairs(numeric_df)
 ```
 
+
+```{r}
+library(purrr)
+library(Matrix)
+library(matrixcalc)
+library(metaSEM)
+```
+
+```{r}
+vars <- c("time_bp", "sleep_bal", "prod_inc")  # X, M, Y (in that order)
+
+# --- 2) Choose grouping variable to define "studies" ---
+group_var <- "occupation"  
+```
+
+
+```{r}
+dat <- df1 %>%
+  select(all_of(c(group_var, vars))) %>%
+  mutate(across(all_of(vars), as.numeric)) %>%
+  filter(rowSums(is.na(across(all_of(vars)))) < length(vars))
+```
+
+```{r}
+min_n <- 30  # you can relax/tighten this
+
+by_group <- dat %>%
+  group_by(.data[[group_var]]) %>%
+  group_split()
+```
+
+
+```{r}
+safe_cor <- function(d, varnames) {
+  dsub <- d %>% select(all_of(varnames))
+  # require enough rows and non-zero variance for all vars
+  if (nrow(dsub) < min_n || any(apply(dsub, 2, function(x) sd(x, na.rm = TRUE) == 0))) return(NULL)
+  cm <- cor(dsub, use = "pairwise.complete.obs")
+  # ensure proper dimnames
+  dimnames(cm) <- list(varnames, varnames)
+  # must be symmetric & (near) positive definite; if not, smooth a bit
+  if (!is.positive.definite(cm)) {
+    cm_pd <- as.matrix(nearPD(cm)$mat)
+    dimnames(cm_pd) <- list(varnames, varnames)
+    return(cm_pd)
+  }
+  cm
+}
+
+
+
+cors_list <- map(by_group, ~ safe_cor(.x, vars))
+ns_list   <- map_int(by_group, nrow)
+```
+
+```{r}
+# Keep only valid studies (non-NULL cors, no NA entries)
+keep_idx <- which(map_lgl(cors_list, ~ !is.null(.x) && !any(is.na(.x))))
+cors     <- cors_list[keep_idx]
+n_study  <- ns_list[keep_idx]
+study_ids <- sapply(by_group[keep_idx], function(g) unique(g[[group_var]])[1])
+
+if (length(cors) < 2) {
+  stop("Not enough valid groups to run MASEM. Try lowering min_n or choosing another grouping variable.")
+}
+
+cat("Included studies (groups):\n")
+print(study_ids)
+cat("Sample sizes per study:\n")
+print(n_study)
+```
+
+```{r}
+# --- 5) Stage 1: Random-effects pooling of correlation matrices ---
+stage1 <- tssem1(cors, n_study, method = "REM")
+```
+
+```{r}
+# Manifest names MUST match 'vars' order: c("time_bp","sleep_bal","prod_inc")
+model2 <- mxModel("Mediation_TSSEM",
+  type = "RAM",
+  manifestVars = vars,
+  latentVars = NULL,
+  # Paths
+  mxPath(from = "time_bp",  to = "sleep_bal", arrows = 1, free = TRUE, values = 0.2, labels = "a"),
+  mxPath(from = "sleep_bal", to = "prod_inc",  arrows = 1, free = TRUE, values = 0.2, labels = "b"),
+  mxPath(from = "time_bp",   to = "prod_inc",  arrows = 1, free = TRUE, values = 0.2, labels = "c"),
+  # Variances (disturbances)
+  mxPath(from = vars, arrows = 2, free = TRUE, values = 1)
+)
+
+stage2 <- tssem2(stage1, model2, diag.constraints = FALSE)
+out <- summary(stage2)
+print(out)
+```
+
+```{r}
+# Step 1: Create correlation matrix from numeric variables
+numeric_vars <- c("time_bp", "time_dp", "travel_time",
+                  "easeof_online", "home_env", "prod_inc", 
+                  "sleep_bal", "new_skill", "fam_connect", 
+                  "relaxed", "self_time", "time_bp2")
+
+cor_matrix <- cor(df[, numeric_vars], use = "pairwise.complete.obs")
+```
+
+```{r}
+# Step 2: Wrap as list (as if one study provided this correlation matrix)
+cor_list <- list(cor_matrix)
+
+# Step 3: Sample size
+n_list <- nrow(df)
+
+# Step 4: Random-effects meta-analysis of correlation matrices
+stage1 <- tssem1(cor_list, n_list, method="REM")
+```
+
