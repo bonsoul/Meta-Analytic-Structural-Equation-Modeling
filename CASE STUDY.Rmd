@@ -101,7 +101,7 @@ df1 <- df[, colSums(is.na(df)) < nrow(df)]
 categorical_vars <- c("gender", "occupation", "like_hw", "dislike_hw", "prefer")
 for (var in categorical_vars) {
   print(
-    ggplot(df, aes(x = .data[[var]])) +
+    ggplot(df1, aes(x = .data[[var]])) +
       geom_bar(fill = "steelblue") +
       theme_minimal() +
       ggtitle(paste("Distribution of", var))
@@ -111,31 +111,36 @@ for (var in categorical_vars) {
 
 
 ```{r}
-# Convert suspected numeric columns to numeric
-numeric_vars <- c("age", "time_bp...5", "time_dp", "travel_time", "prod_inc", "sleep_bal")
+# Select only numeric columns
+numeric_df <- df1 %>% select(where(is.numeric))
 
-df1[numeric_vars] <- lapply(df[numeric_vars], function(x) as.numeric(as.character(x)))
 
+
+numeric_df %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~variable, scales = "free", ncol = 3) +
+  theme_minimal()
+```
+
+
+```{r}
+# 3. Boxplots for outlier detection
+numeric_df %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(y = value, x = variable, fill = variable)) +
+  geom_boxplot(show.legend = FALSE, outlier.color = "red") +
+  coord_flip() +
+  theme_minimal()
+```
+
+
+```{r}
+ggcorr(numeric_df, label = TRUE, label_round = 2, hjust = 0.75, size = 3)
 ```
 
 ```{r}
-for (var in numeric_vars) {
-  if (is.numeric(df[[var]])) {
-    print(
-      ggplot(df1, aes(x = .data[[var]])) +
-        geom_histogram(fill = "orange", bins = 30, color = "black") +
-        theme_minimal() +
-        ggtitle(paste("Histogram of", var))
-    )
-  } else {
-    print(
-      ggplot(df, aes(x = .data[[var]])) +
-        geom_bar(fill = "skyblue") +
-        theme_minimal() +
-        ggtitle(paste("Bar chart of", var, "(treated as categorical)"))
-    )
-  }
-}
-
+ggpairs(numeric_df)
 ```
 
