@@ -1,0 +1,263 @@
+---
+title: "SEM"
+author: "Bonsoul"
+date: "2025-08-18"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls(all = TRUE))
+graphics.off()
+shell("cls")
+```
+
+```{r, reading the data}
+library(readr)
+library(ggplot2)
+library(dplyr)
+
+data <- read_csv("SEM/enhanced_student_habits_performance_dataset/enhanced_student_habits_performance_dataset.csv")
+
+head(data)
+
+```
+
+```{r, cleaning the dataset}
+str(data)
+summary(data)
+
+```
+
+```{r, , categorical variables}
+# Distribution of gender
+table(data$gender)
+
+# Bar plot: dropout risk
+ggplot(data, aes(x = dropout_risk)) +
+  geom_bar(fill = "skyblue") +
+  theme_minimal()
+
+# Cross-tab: gender vs dropout
+table(data$gender, data$dropout_risk)
+
+
+```
+
+```{r, numerical variables}
+# Summary statistics
+data %>% select(age, study_hours_per_day, sleep_hours, exam_score) %>% summary()
+
+# Histogram: exam scores
+ggplot(data, aes(x = exam_score)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  theme_minimal()
+
+# Boxplot: exam score by gender
+ggplot(data, aes(x = gender, y = exam_score, fill = gender)) +
+  geom_boxplot(alpha = 0.6) +
+  theme_minimal()
+
+
+
+```
+
+```{r}
+library(corrplot)
+
+num_data <- data %>% select_if(is.numeric)
+corrplot(cor(num_data, use = "pairwise.complete.obs"),method = "color")
+
+
+#study hours vs exam_score
+ggplot(data, aes(x = study_hours_per_day, y = exam_score)) +
+  geom_point(alpha = 0.6, color = "darkgreen") +
+  geom_smooth(method = "lm", formula = y ~ x, color = "red", se = TRUE) +
+  theme_minimal()
+
+
+```
+
+
+```{r}
+# Stress vs Exam Score
+ggplot(data, aes(x = stress_level, y = exam_score)) +
+  geom_point(alpha = 0.6, color = "purple") +
+  geom_smooth(method = "lm", formula = y ~ x, color = "black", se = TRUE) +
+  theme_minimal()
+
+```
+
+```{r}
+# Exam score by parental education
+ggplot(data, aes(x = parental_education_level, y = exam_score, fill = parental_education_level)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+# Dropout risk by internet quality
+ggplot(data, aes(x = internet_quality, fill = dropout_risk)) +
+  geom_bar(position = "fill") +
+  theme_minimal()
+```
+
+```{r}
+library(lavaan)
+library(dplyr)
+```
+
+```{r,Minimal cleaning for factors (keep only needed variables here)}
+
+data <- data %>%
+  mutate(
+    gender = factor(gender),
+  )
+
+```
+
+```{r}
+colnames(data)
+```
+
+
+```{r, drop the third variable in gender}
+data <- data %>%
+  mutate(
+    gender = ifelse(gender == "Male", "Male", "Female"),  # collapse Other into Female
+    gender = factor(gender, levels = c("Female", "Male"))
+  )
+
+
+```
+
+
+```{r, model}
+model_exam <- '
+  # Measurement model
+  StudyHabits =~ study_hours_per_day + time_management_score + attendance_percentage
+  Wellbeing   =~ sleep_hours + mental_health_rating + exercise_frequency + stress_level
+  Distraction =~ social_media_hours + netflix_hours + screen_time + social_activity
+
+  # (Optionally fix negative direction for stress by allowing free loading and interpret sign)
+  # You can also set one loading per factor to 1 by default (lavaan does this automatically).
+
+  # Structural regressions
+  StudyHabits ~ Wellbeing + motivation_level + parental_support_level
+  exam_score  ~ StudyHabits + Wellbeing + Distraction +
+                previous_gpa + motivation_level + exam_anxiety_score +
+                parental_support_level + age + gender
+
+  # Latent covariances
+  StudyHabits ~~ Wellbeing + Distraction
+  Wellbeing ~~ Distraction
+
+  # Indirect effects (defined parameters)
+  ind_WB_SH_ES := Wellbeing -> StudyHabits -> exam_score
+  # Implement via labeled paths:
+  # label paths then compute
+'
+
+# To define the indirect effect properly, label the paths:
+model_exam <- '
+  # Measurement
+  StudyHabits =~ sh1*study_hours_per_day + sh2*time_management_score + sh3*attendance_percentage
+  Wellbeing   =~ wb1*sleep_hours + wb2*mental_health_rating + wb3*exercise_frequency + wb4*stress_level
+  Distraction =~ dd1*social_media_hours + dd2*netflix_hours + dd3*screen_time + dd4*social_activity
+
+  # Structural with labels
+  StudyHabits ~ a1*Wellbeing + a2*motivation_level + a3*parental_support_level
+  exam_score  ~ b1*StudyHabits + b2*Wellbeing + b3*Distraction +
+                c1*previous_gpa + c2*motivation_level + c3*exam_anxiety_score +
+                c4*parental_support_level + c5*age + c6*gender
+
+  # Covariances
+  StudyHabits ~~ Wellbeing + Distraction
+  Wellbeing ~~ Distraction
+
+  # Indirect effects
+  ind_WB_SH_ES := a1*b1              # Wellbeing -> StudyHabits -> exam_score
+  ind_Mot_SH_ES := a2*b1             # motivation -> StudyHabits -> exam_score
+  ind_PS_SH_ES  := a3*b1             # parental_support -> StudyHabits -> exam_score
+
+  # Total effects of Wellbeing on exam_score
+  total_WB_ES := b2 + (a1*b1)
+'
+
+```
+
+```{r}
+library(semPlot)
+```
+
+
+
+```{r}
+fit_exam <- sem(model_exam, data = data, estimator = "MLR", missing = "fiml", std.lv = TRUE)
+summary(fit_exam, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)
+parameterEstimates(fit_exam, standardized = TRUE) %>% dplyr::arrange(desc(abs(std.all)))
+#modindices(fit_exam, sort.=TRUE, minimum.value = 10)
+semPaths(fit_exam, "std", whatLabels = "std", layout = "tree", edge.label.cex = 0.8)
+```
+
+
+
+```{r}
+library(semPlot)
+
+# Fit SEM (example)
+fit_exam <- sem(model_exam, data = data, 
+                estimator = "MLR", missing = "fiml", std.lv = TRUE)
+
+# Plot the SEM paths
+semPaths(
+  fit_exam,
+  what = "std",           # show standardized estimates
+  whatLabels = "std",     # label edges with standardized estimates
+  style = "lisrel",       # cleaner layout
+  layout = "tree2",       # hierarchical layout
+  rotation = 2,
+  edge.label.cex = 0.8,   # size of path labels
+  sizeMan = 6,            # size of manifest (observed) vars
+  sizeLat = 8,            # size of latent vars (if any)
+  residuals = TRUE,
+  intercepts = FALSE,
+  nCharNodes = 0,         # show full variable names
+  mar = c(5, 5, 5, 5)
+)
+
+```
+
+```{r}
+# Save high-resolution SEM plot as PNG
+png("SEM_plot.png", width = 2000, height = 1500, res = 300)
+
+semPaths(
+  fit_exam,
+  what = "std",          # show standardized estimates
+  layout = "tree",       # cleaner tree-like layout
+  rotation = 2,          # rotate for readability
+  style = "lisrel",      # professional SEM style
+  nCharNodes = 0,        # full variable names
+  edge.label.cex = 0.9,  # size of path coefficients
+  sizeMan = 6,           # size of observed variables
+  sizeLat = 8,           # size of latent variables
+  mar = c(5, 5, 5, 5),   # margins
+  residuals = FALSE,     # hide residual arrows
+  intercepts = FALSE,    # hide intercepts
+  curve = 2              # curvature of arrows
+)
+
+dev.off()
+```
+
+
+
