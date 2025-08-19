@@ -25,7 +25,7 @@ library(lavaan)
 test_model <- '
   wellbeing =~ sleep_bal + relaxed + self_time
 '
-test_fit <- sem(test_model, data = df, std.lv = TRUE)
+test_fit <- sem(test_model, data = df1, std.lv = TRUE)
 summary(test_fit, fit.measures = TRUE, standardized = TRUE)
 
 
@@ -42,7 +42,7 @@ sem_model <- '
   Productivity ~ Wellbeing
 '
 
-sem_fit <- sem(sem_model, data = df, std.lv = TRUE)
+sem_fit <- sem(sem_model, data = df1, std.lv = TRUE)
 
 summary(sem_fit, fit.measures = TRUE, standardized = TRUE)
 
