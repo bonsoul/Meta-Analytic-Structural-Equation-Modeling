@@ -3,28 +3,139 @@ title: "PROJOJECT"
 author: "Bonsoul"
 date: "2025-08-19"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+install.packages("skimr")
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(VIM)
+library(naniar)
+library(DataExplorer)
+library(corrplot)
+library(GGally)
+library(skimr)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+
+df <- read_csv("psyco.csv")
+colnames(df)
+```
+
+```{r}
+str(df)
+summary(df)
+
+```
+
+```{r}
+
+# Assuming your dataset is already read into df
+df <- df %>%
+  # Fix age → factor
+  mutate(age = factor(age),
+         gender = factor(gender),
+         occupation = factor(occupation),
+         line_of_work = factor(line_of_work),
+         prefer = factor(prefer),
+         certaindays_hw = factor(certaindays_hw)) %>%
+  
+  # Drop useless columns
+  select(-`...20`, -`travel+work`) %>%
+  
+  # Rename confusing columns
+  rename(time_bp = `time_bp...5`,
+         time_bp2 = `time_bp...21`) %>%
+  
+  # Ensure numeric columns are numeric
+  mutate(across(c(time_bp, time_dp, travel_time, easeof_online, home_env,
+                  prod_inc, sleep_bal, new_skill, fam_connect, relaxed,
+                  self_time), as.numeric)) %>%
+  
+  # Check for odd encodings in like_hw and dislike_hw
+  mutate(like_hw = as.character(like_hw),
+         dislike_hw = as.character(dislike_hw))
+
+# Quick check
+str(df)
+summary(df)
+
+```
+
+
+
+```{r}
+vis_miss(df)
+skim(df)
+```
+
+
+```{r}
+# Count total missing values in the dataset
+sum(is.na(df))
+
+
+# Percentage of missing values per column
+colMeans(is.na(df)) * 100
+
+```
+
+```{r}
+df1 <- df[, colSums(is.na(df)) < nrow(df)]
+```
+
+
+```{r}
+categorical_vars <- c("gender", "occupation", "like_hw", "dislike_hw", "prefer")
+for (var in categorical_vars) {
+  print(
+    ggplot(df, aes(x = .data[[var]])) +
+      geom_bar(fill = "steelblue") +
+      theme_minimal() +
+      ggtitle(paste("Distribution of", var))
+  )
+}
+```
+
+
+```{r}
+# Convert suspected numeric columns to numeric
+numeric_vars <- c("age", "time_bp...5", "time_dp", "travel_time", "prod_inc", "sleep_bal")
+
+df1[numeric_vars] <- lapply(df[numeric_vars], function(x) as.numeric(as.character(x)))
+
+```
+
+```{r}
+for (var in numeric_vars) {
+  if (is.numeric(df[[var]])) {
+    print(
+      ggplot(df1, aes(x = .data[[var]])) +
+        geom_histogram(fill = "orange", bins = 30, color = "black") +
+        theme_minimal() +
+        ggtitle(paste("Histogram of", var))
+    )
+  } else {
+    print(
+      ggplot(df, aes(x = .data[[var]])) +
+        geom_bar(fill = "skyblue") +
+        theme_minimal() +
+        ggtitle(paste("Bar chart of", var, "(treated as categorical)"))
+    )
+  }
+}
+
+```
+
