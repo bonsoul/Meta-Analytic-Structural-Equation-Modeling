@@ -3,6 +3,8 @@ title: "MSEM"
 author: "Bonsoul"
 date: "2025-08-19"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -10,6 +12,142 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+install.packages("metaSEM")
+```
+
+```{r}
+library(metaSEM)
+library(lavaan)
+library(semPlot)
 
 ```
+
+
+```{r}
+cor1 <- matrix(c(1, .4, .3,
+                 .4, 1, .5,
+                 .3, .5, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cor2 <- matrix(c(1, .5, .35,
+                 .5, 1, .45,
+                 .35, .45, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cor3 <- matrix(c(1, .45, .25,
+                 .45, 1, .55,
+                 .25, .55, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+```
+
+```{r}
+cors <- list(cor1, cor2, cor3)
+
+n <- c(200, 250, 300)
+
+stage1 <- tssem1(cors, n, method = "REM")
+
+```
+
+```{r}
+model2 <- mxModel("Mediation",
+  type="RAM",
+  manifestVars=c("X", "M", "Y"),
+  latentVars=NULL,
+  mxPath(from="X", to="M", arrows=1, free=TRUE, values=0.2, labels="a"),
+  mxPath(from="M", to="Y", arrows=1, free=TRUE, values=0.2, labels="b"),
+  mxPath(from="X", to="Y", arrows=1, free=TRUE, values=0.2, labels="c"),
+  mxPath(from=c("X","M","Y"), arrows=2, free=TRUE, values=1) # variances
+)
+```
+
+
+```{r}
+stage2 <- tssem2(stage1, model2, diag.constraints=FALSE)
+summary(stage2)
+```
+
+
+```{r}
+library(metaSEM)
+
+# Step 1: Correlation matrices with names
+cor1 <- matrix(c(1, .4, .3,
+                 .4, 1, .5,
+                 .3, .5, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cor2 <- matrix(c(1, .5, .35,
+                 .5, 1, .45,
+                 .35, .45, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cor3 <- matrix(c(1, .45, .25,
+                 .45, 1, .55,
+                 .25, .55, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cors <- list(cor1, cor2, cor3)
+n <- c(200, 250, 300)
+
+# Step 2: Stage 1 random-effects MASEM
+stage1 <- tssem1(cors, n, method="REM")
+
+# Step 3: Specify SEM model in RAM notation
+model2 <- mxModel("Mediation",
+  type="RAM",
+  manifestVars=c("X","M","Y"),
+  mxPath(from="X", to="M", arrows=1, free=TRUE, values=0.2, labels="a"),
+  mxPath(from="M", to="Y", arrows=1, free=TRUE, values=0.2, labels="b"),
+  mxPath(from="X", to="Y", arrows=1, free=TRUE, values=0.2, labels="c"),
+  mxPath(from=c("X","M","Y"), arrows=2, free=TRUE, values=1) # variances
+)
+
+# Step 4: Stage 2
+stage2 <- tssem2(stage1, model2, diag.constraints=FALSE)
+summary(stage2)
+
+```
+
+```{r}
+library(metaSEM)
+
+## Step 1. Correlation matrices with proper names
+cor1 <- matrix(c(1, .4, .3,
+                 .4, 1, .5,
+                 .3, .5, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cor2 <- matrix(c(1, .5, .35,
+                 .5, 1, .45,
+                 .35, .45, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cor3 <- matrix(c(1, .45, .25,
+                 .45, 1, .55,
+                 .25, .55, 1), nrow=3, byrow=TRUE,
+               dimnames=list(c("X","M","Y"), c("X","M","Y")))
+
+cors <- list(cor1, cor2, cor3)
+n <- c(200, 250, 300)
+
+## Step 2. Stage 1: random-effects pooled correlation matrix
+stage1 <- tssem1(cors, n, method="REM")
+
+## Step 3. Define SEM model in OpenMx RAM
+model2 <- mxModel("Mediation",
+  type="RAM",
+  manifestVars=c("X","M","Y"),
+  mxPath(from="X", to="M", arrows=1, free=TRUE, values=0.2, labels="a"),
+  mxPath(from="M", to="Y", arrows=1, free=TRUE, values=0.2, labels="b"),
+  mxPath(from="X", to="Y", arrows=1, free=TRUE, values=0.2, labels="c"),
+  mxPath(from=c("X","M","Y"), arrows=2, free=TRUE, values=1)
+)
+
+## Step 4. Stage 2: fit SEM
+stage2 <- tssem2(stage1, model2, diag.constraints=FALSE)
+summary(stage2)
+
+```
+
 
