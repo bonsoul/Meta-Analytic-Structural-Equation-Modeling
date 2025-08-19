@@ -261,3 +261,71 @@ n_list <- nrow(df)
 stage1 <- tssem1(cor_list, n_list, method="REM")
 ```
 
+```{r}
+# Load packages
+library(metaSEM)
+library(lavaan)
+
+# Step 1: Create correlation matrix from numeric variables
+numeric_vars <- c("time_bp", "time_dp", "travel_time",
+                  "easeof_online", "home_env", "prod_inc", 
+                  "sleep_bal", "new_skill", "fam_connect", 
+                  "relaxed", "self_time", "time_bp2")
+
+cor_matrix <- cor(df[, numeric_vars], use = "pairwise.complete.obs")
+
+# Step 2: Wrap as list (as if one study provided this correlation matrix)
+cor_list <- list(cor_matrix)
+
+# Step 3: Sample size
+n_list <- nrow(df)
+
+# Step 4: Random-effects meta-analysis of correlation matrices
+stage1 <- tssem1(cor_list, n_list, method="REM")
+
+# Step 5: Define structural model (example)
+model2 <- "
+  # measurement model (just example)
+  WellBeing =~ sleep_bal + relaxed + self_time + fam_connect
+  Productivity =~ prod_inc + easeof_online + new_skill + home_env
+
+  # structural relations
+  Productivity ~ WellBeing + travel_time + time_bp
+"
+
+# Step 6: Run stage 2 (SEM)
+stage2 <- tssem2(stage1, model2, diag.constraints=FALSE)
+
+# Step 7: Summary
+summary(stage2)
+ 
+```
+
+```{r}
+library(lavaan)
+
+model2 <- "
+  WellBeing =~ sleep_bal + relaxed + self_time + fam_connect
+  Productivity =~ prod_inc + easeof_online + new_skill + home_env
+
+  Productivity ~ WellBeing + travel_time + time_bp
+"
+
+fit <- sem(model2, data = df, estimator="ML")
+summary(fit, fit.measures=TRUE, standardized=TRUE)
+
+```
+
+
+```{r}
+# Inspect modification indices (to see if adding extra paths would improve fit)
+modificationindices(fit, sort.=TRUE, maximum.number=10)
+
+# Visualize SEM path diagram
+library(semPlot)
+semPaths(fit, "std", layout="tree", residuals=TRUE, 
+         intercepts=FALSE, edge.label.cex=0.8)
+
+```
+
+
