@@ -26,8 +26,8 @@ library(skimr)
 
 ```{r}
 
-df <- read_csv("psyco.csv")
-colnames(df)
+# Read first 100,000 rows
+df <- read_csv("psyco.csv", n_max = 100000)
 ```
 
 ```{r}
