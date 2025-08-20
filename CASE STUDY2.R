@@ -46,7 +46,7 @@ sem_fit_comp <- sem(sem_model_comp, data = df1, std.lv = TRUE)
 summary(sem_fit_comp, fit.measures=TRUE, standardized=TRUE)
 
 
-
+colnames(df1)
 
 
 
