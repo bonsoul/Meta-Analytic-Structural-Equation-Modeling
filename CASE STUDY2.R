@@ -21,6 +21,36 @@ str(df)
 sapply(df, function(x) var(as.numeric(x), na.rm = TRUE))
 
 
+sapply(df1[, c("prod_inc","time_bp","time_dp","travel_time")], 
+       function(x) var(x, na.rm=TRUE))
+
+cor(df1[, c("prod_inc","time_bp","time_dp","travel_time")], use="pairwise.complete.obs")
+
+
+prod_model <- '
+  Productivity =~ prod_inc + time_bp + travel_time
+'
+prod_fit <- sem(prod_model, data = df1, std.lv = TRUE)
+summary(prod_fit, standardized=TRUE, fit.measures=TRUE)
+
+
+df1$Productivity_score <- scale(df1$prod_inc) + 
+  scale(df1$time_bp) + 
+  scale(df1$travel_time)
+
+sem_model_comp <- '
+  Wellbeing =~ sleep_bal + relaxed + self_time
+  Productivity_score ~ Wellbeing
+'
+sem_fit_comp <- sem(sem_model_comp, data = df1, std.lv = TRUE)
+summary(sem_fit_comp, fit.measures=TRUE, standardized=TRUE)
+
+
+
+
+
+
+
 
 df1_std <- df1 %>%
   mutate(across(c(sleep_bal, relaxed, self_time,
